@@ -1,21 +1,31 @@
 class Vehicle {
   constructor(pos) {
-    this.genes = [];
-    this.health = 1;
 
-    this.mass = 1;
+    this.health = 1;
+    this.age = 1;
+
+    this.genes = {
+      mass: new Gene(1, 0.5, 0.5),
+      maxVel: new Gene(5, 1, 0.5),
+      maxAcc: new Gene(0.2, 0.05, 0.5),
+      sight: new Gene(70, 5, 0.5),
+      foodWeight: new Gene(1, 0.2, 0.5),
+      poisonWeight: new Gene(-1, 0.2, 0.5)
+
+    };
+    // this.mass = 1;
     this.pos = pos;
     this.vel = createVector(2, 0);
     this.acc = createVector(0, 0);
     this.force = createVector(0, 0);
 
-    this.maxvel = 5;
-    this.maxacc = 0.2;
+    // this.maxvel = 5;
+    // this.maxacc = 0.2;
 
-    this.sight = 50;
+    // this.sight = 50;
 
-    this.poisonWeight = -1;
-    this.foodWeight = 1;
+    // this.poisonWeight = -1;
+    // this.foodWeight = 1;
 
     this.noiseCounter = 0; // noise counter used for wandering with perlin noise
     this.wanderScale = 0.05; // scale used to set impact of wandervect
@@ -23,8 +33,11 @@ class Vehicle {
   }
 
   reset() {
+    // track age
+    this.age++;
+
     // constant health decrease due to metabolism
-    this.health -= 0.0005;
+    this.health -= 0.001;
 
     // reset forces each call in draw() as force is calculated instantaneously
     this.force = createVector(0, 0);
@@ -33,9 +46,6 @@ class Vehicle {
 
   // This function seeks or avoids a location provided as argument
   seek(edibles) {
-
-    // var targetPos = createVector(mouseX, mouseY);
-
     // Find closest
     var closestEdible = null;
     var closestDist = Infinity;
@@ -45,7 +55,7 @@ class Vehicle {
       // console.log(edible);
 
       var dist = this.pos.dist(edible.pos);
-      if (dist < this.sight && dist < closestDist) {
+      if (dist < this.genes.sight.val && dist < closestDist) {
         // save this edible to seek
         closestEdible = edible;
         closestDist = dist;
@@ -57,24 +67,24 @@ class Vehicle {
       if (this.pos.dist(closestEdible.pos) < 5) { // if the edible is within eating distance
         this.eat(edibles, closestIdx);
 
-      } else if (this.pos.dist(closestEdible.pos) < this.sight) { // If this edible is perceivable
+      } else if (this.pos.dist(closestEdible.pos) < this.genes.sight.val) { // If this edible is perceivable
         // seek the edible
         var targetPos = closestEdible.pos.copy();
 
         // find error (deltas) between desired position and velocity to apply seeking force
         var pErr = targetPos.sub(this.pos); // position error (deltaPos)
-        pErr.setMag(this.maxvel); // scale down desired velocity to reasonable level
+        pErr.setMag(this.genes.maxVel.val); // scale down desired velocity to reasonable level
         var vErr = pErr.sub(this.vel); // velocity error (deltaV)
-        vErr.setMag(this.maxacc); // scale down deltaV to maxacc
+        vErr.setMag(this.genes.maxAcc.val); // scale down deltaV to maxacc
 
         // This is the desired change we want to see in the velocity
         var desiredDeltaV = vErr; // Rename for clarity
 
         // apply weight based on edible type
         if (closestEdible.type == EDIBLETYPE.FOOD) {
-          desiredDeltaV.mult(this.foodWeight);
+          desiredDeltaV.mult(this.genes.foodWeight.val);
         } else if (closestEdible.type == EDIBLETYPE.POISON) {
-          desiredDeltaV.mult(this.poisonWeight);
+          desiredDeltaV.mult(this.genes.poisonWeight.val);
         }
 
         this.force.add(desiredDeltaV);
@@ -117,7 +127,7 @@ class Vehicle {
 
   // Apply forces to keep vehicles within margins of the canvas
   applyMargins(margin) {
-    var marginForce = this.maxacc;
+    var marginForce = this.genes.maxAcc.val;
 
     if (this.pos.x < margin) {
       this.force.add(marginForce, 0)
@@ -134,11 +144,36 @@ class Vehicle {
 
   // This function updates motion vectors based on forces
   updateMotion() {
-    this.acc.add(this.force.div(this.mass)); // a = f/m
-    this.acc.limit(this.maxacc);
+    this.acc.add(this.force.div(this.genes.mass.val)); // a = f/m
+    this.acc.limit(this.genes.maxAcc.val);
     this.vel.add(this.acc);
-    this.vel.limit(this.maxvel);
+    this.vel.limit(this.genes.maxVel.val);
     this.pos.add(this.vel);
+  }
+
+  reproduce() {
+    var v2 = new Vehicle(this.pos.copy());
+    for (var geneName in v2.genes) { // for each gene
+      var gene = v2.genes[geneName];
+
+      // get the parent's gene value
+      gene.copyFrom(this.genes[geneName]);
+
+      // mutate child gene
+      gene.mutate();
+    }
+
+    // limit health benefit
+    v2.health = this.health + 0.2;
+
+    // checks
+    if (v2.genes.mass.val <= 0) {
+      v2.genes.mass.val = v2.genes.mass.mutationPlusMinus;
+    }
+    if (v2.genes.sight.val <= 0) {
+      v2.genes.sight.val = v2.genes.sight.mutationPlusMinus;
+    }
+    VEHICLES.push(v2);
   }
 
   show() {
@@ -153,6 +188,7 @@ class Vehicle {
     var rd = color(255, 0, 0);
     var col = lerpColor(rd, gr, this.health);
     fill(col);
+
     beginShape();
     vertex(0, 0);
     vertex(5, 20);
@@ -164,7 +200,12 @@ class Vehicle {
       noFill();
       strokeWeight(1);
       stroke(color(255, 0, 255));
-      ellipse(0, 0, 2 * this.sight, 2 * this.sight);
+      ellipse(0, 0, 2 * this.genes.sight.val, 2 * this.genes.sight.val);
+
+      // text(this.genes.mass.val, 0, 0);
+      textAlign(CENTER);
+      text(nf(this.health, 2, 2), 0, 30);
+      text(nf(this.age, 4, 0), 0, 40);
     }
 
 
