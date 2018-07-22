@@ -3,6 +3,7 @@ class Vehicle {
 
     this.health = 1;
     this.age = 1;
+    this.generation = 1;
 
     this.genes = {
       mass: new Gene(1, 0.5, 0.5),
@@ -11,21 +12,12 @@ class Vehicle {
       sight: new Gene(70, 5, 0.5),
       foodWeight: new Gene(1, 0.2, 0.5),
       poisonWeight: new Gene(-1, 0.2, 0.5)
-
     };
-    // this.mass = 1;
+
     this.pos = pos;
     this.vel = createVector(2, 0);
     this.acc = createVector(0, 0);
     this.force = createVector(0, 0);
-
-    // this.maxvel = 5;
-    // this.maxacc = 0.2;
-
-    // this.sight = 50;
-
-    // this.poisonWeight = -1;
-    // this.foodWeight = 1;
 
     this.noiseCounter = 0; // noise counter used for wandering with perlin noise
     this.wanderScale = 0.05; // scale used to set impact of wandervect
@@ -153,6 +145,11 @@ class Vehicle {
 
   reproduce() {
     var v2 = new Vehicle(this.pos.copy());
+
+    // Set new generation
+    v2.generation = this.generation + 1;
+
+    // pass on genes    
     for (var geneName in v2.genes) { // for each gene
       var gene = v2.genes[geneName];
 
